@@ -1,0 +1,17 @@
+# Ignore all contents of .qodo folder
+.qodo/**
+
+# Ignore all contents of final_sheets folder
+final_sheets/**
+
+# Ignore all contents of templates folder
+# templates/**
+
+# Ignore all contents of uploads folder
+uploads/**
+
+# Keep the folders themselves, but ignore their contents
+!.qodo/
+!final_sheets/
+!templates/
+!uploads/

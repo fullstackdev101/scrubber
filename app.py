@@ -81,9 +81,17 @@ def scrub():
             # Overwrite the output file
             non_matching_df.to_excel(output_file, index=False)
 
+    #  Delete all files from the uploads folder after scrub is complete
+    for file_name in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, file_name)
+        try:
+            os.remove(file_path)
+        except Exception as e:
+            print(f"Error deleting file {file_path}: {e}")
+    
     return render_template(
         'index.html',
-        message="✅ Scrubbed successfully! <a href='/download_output' class='underline text-blue-700'>Download Output Sheet</a>"
+        message="Scrubbed successfully! <a href='/download_output' class='underline text-blue-700'>Download Output Sheet</a>"
     )
 
 @app.route('/download_output')
