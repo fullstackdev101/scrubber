@@ -92,7 +92,9 @@ def download_output():
     filename = "output_sheet.xlsx"
     return send_from_directory(path, filename, as_attachment=True)
 
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(FINAL_FOLDER, exist_ok=True)
+
 if __name__ == '__main__':
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    os.makedirs(FINAL_FOLDER, exist_ok=True)
     app.run(debug=True)
+
