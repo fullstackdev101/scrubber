@@ -166,6 +166,13 @@ def download_output():
     filename = "output_sheet.xlsx"
     return send_from_directory(path, filename, as_attachment=True)
 
+@app.route('/check_output_ready')
+def check_output_ready():
+    output_file_exists = os.path.exists(os.path.join(FINAL_FOLDER, "output_sheet.xlsx"))
+    uploads_exist = any(f.endswith(".xlsx") for f in os.listdir(UPLOAD_FOLDER))
+    return {"ready": output_file_exists and uploads_exist}
+
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(FINAL_FOLDER, exist_ok=True)
 
