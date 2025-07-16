@@ -21,18 +21,25 @@ def index():
 @app.route('/remove_duplicates', methods=['POST'])
 def remove():
     if 'file' not in request.files:
-        return 'No file part'
+        return render_template('index.html', message="❌ No file part.")
 
     file = request.files['file']
     if file.filename == '':
-        return 'No selected file'
+        return render_template('index.html', message="❌ No file selected.")
 
     file_path = os.path.join(FINAL_FOLDER, file.filename)
     file.save(file_path)
 
-    df = pd.read_excel(file_path)
-    df_no_duplicates = df.drop_duplicates()
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        return render_template('index.html', message=f"❌ Failed to read Excel file: {str(e)}")
 
+    if 'PhoneNumber' not in df.columns:
+        os.remove(file_path)  # Clean up
+        return render_template('index.html', message="❌ The uploaded file does not contain a 'PhoneNumber' column.")
+
+    df_no_duplicates = df.drop_duplicates()
     output_excel_file = os.path.join(FINAL_FOLDER, 'output_sheet.xlsx')
     df_no_duplicates.to_excel(output_excel_file, index=False)
 
@@ -42,16 +49,50 @@ def remove():
 def upload_files():
     uploaded_files = request.files.getlist('files')
 
-    if uploaded_files:
-        for file in uploaded_files:
-            if file and allowed_file(file.filename):
-                file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
-            else:
-                return 'Invalid file type. Only .xlsx files are allowed.'
+    accepted_files = []
+    rejected_files = []
 
-        return render_template('index.html', message="✅ Files uploaded successfully!")
-    else:
-        return 'No files uploaded'
+    if not uploaded_files:
+        return render_template('index.html', message="❌ No files uploaded.")
+
+    for file in uploaded_files:
+        if not (file and allowed_file(file.filename)):
+            rejected_files.append(f"{file.filename} (invalid file type)")
+            continue
+
+        try:
+            df = pd.read_excel(file)
+            if 'PhoneNumber' not in df.columns:
+                rejected_files.append(f"{file.filename} (missing 'PhoneNumber' column)")
+                continue
+
+            # Save only if valid
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+            file.seek(0)  # Reset stream before saving
+            file.save(file_path)
+            accepted_files.append(file.filename)
+
+        except Exception as e:
+            rejected_files.append(f"{file.filename} (read error: {str(e).splitlines()[0]})")
+            continue
+
+    # Compose HTML message
+    message_parts = []
+
+    if accepted_files:
+        uploaded_list = "<br>".join([f"✅ <b>{fname}</b>" for fname in accepted_files])
+        message_parts.append(f"<div class='text-green-700 font-medium'>Uploaded:</div>{uploaded_list}")
+
+    if rejected_files:
+        rejected_list = "<br>".join([f"⚠️ <b>{fname}</b>" for fname in rejected_files])
+        message_parts.append(f"<div class='text-red-700 font-medium mt-2'>Rejected:</div>{rejected_list}")
+
+    final_message = "<br>".join(message_parts)
+
+    return render_template('index.html', message=final_message)
+
+
+
 
 @app.route('/scrub')
 def scrub():
@@ -61,38 +102,63 @@ def scrub():
     if not os.path.exists(output_file):
         return render_template('index.html', message="⚠️ No output_sheet.xlsx found. Please remove duplicates first.")
 
-    original_df = pd.read_excel(output_file)
+    try:
+        original_df = pd.read_excel(output_file)
+    except Exception as e:
+        return render_template('index.html', message=f"❌ Failed to read output sheet: {str(e)}")
+
     common_column = "PhoneNumber"
+    skipped_files = []
 
     for file_name in os.listdir(folder_path):
         if file_name.endswith(".xlsx"):
             file_path = os.path.join(folder_path, file_name)
-            external_df = pd.read_excel(file_path)
+
+            try:
+                external_df = pd.read_excel(file_path)
+            except Exception:
+                skipped_files.append(f"{file_name} (read error)")
+                continue
 
             if common_column not in external_df.columns:
-                continue  # Skip files without the common column
+                skipped_files.append(f"{file_name} (missing 'PhoneNumber')")
+                continue
 
-            # Keep only the common_column to prevent duplicate columns
             external_df = external_df[[common_column]].drop_duplicates()
 
-            merged_df = pd.merge(original_df, external_df, on=common_column, how="left", indicator=True)
-            non_matching_df = merged_df[merged_df["_merge"] == "left_only"].drop(columns=["_merge"])
+            try:
+                merged_df = pd.merge(original_df, external_df, on=common_column, how="left", indicator=True)
+                non_matching_df = merged_df[merged_df["_merge"] == "left_only"].drop(columns=["_merge"])
+                original_df = non_matching_df
+            except Exception:
+                skipped_files.append(f"{file_name} (merge error)")
+                continue
 
-            # Overwrite the output file
-            non_matching_df.to_excel(output_file, index=False)
+    try:
+        original_df.to_excel(output_file, index=False)
+    except Exception as e:
+        return render_template('index.html', message=f"❌ Failed to write output sheet: {str(e)}")
 
-    #  Delete all files from the uploads folder after scrub is complete
-    for file_name in os.listdir(folder_path):
-        file_path = os.path.join(folder_path, file_name)
+    # ✅ Delete all files from uploads folder
+    for f in os.listdir(folder_path):
         try:
-            os.remove(file_path)
-        except Exception as e:
-            print(f"Error deleting file {file_path}: {e}")
-    
-    return render_template(
-        'index.html',
-        message="Scrubbed successfully! <a href='/download_output' class='underline text-blue-700'>Download Output Sheet</a>"
-    )
+            os.remove(os.path.join(folder_path, f))
+        except Exception:
+            continue  # Avoid crash if file is in use or locked
+
+    # 📨 Generate message
+    if skipped_files:
+        skipped_html = "<br>".join([f"⚠️ <b>{fname}</b> skipped" for fname in skipped_files])
+        return render_template(
+            'index.html',
+            message=f"✅ Scrubbed successfully! <a href='/download_output' class='underline text-blue-700'>Download Output Sheet</a><br>{skipped_html}"
+        )
+    else:
+        return render_template(
+            'index.html',
+            message="✅ Scrubbed successfully! <a href='/download_output' class='underline text-blue-700'>Download Output Sheet</a>"
+        )
+
 
 @app.route('/download_output')
 def download_output():

@@ -17,11 +17,10 @@
     {% if 'Download Output Sheet' not in message %}
     <script>
         setTimeout(() => {
-        const flash = document.getElementById('flashMessage');
-        if (flash) flash.style.display = 'none';
-        }, 3000);
+          const flash = document.getElementById('flashMessage');
+          if (flash) flash.style.display = 'none';
+        }, 9000);
     </script>
-
     {% endif %}
     {% endif %}
 
@@ -43,8 +42,12 @@
         <ul id="removeFileList" class="text-sm text-slate-700 space-y-1 pl-2"></ul>
 
         <button type="submit" id="removeBtn" disabled
-          class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg opacity-50 cursor-not-allowed transition-all duration-200 disabled:pointer-events-none">
-          Remove Duplicates
+          class="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg opacity-50 cursor-not-allowed transition-all duration-200 disabled:pointer-events-none">
+          <svg id="removeSpinner" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+          <span>Remove Duplicates</span>
         </button>
       </form>
     </div>
@@ -63,8 +66,12 @@
         <ul id="uploadFileList" class="text-sm text-slate-700 space-y-1 pl-2"></ul>
 
         <button type="submit" id="uploadBtn" disabled
-          class="w-full bg-emerald-600 text-white font-semibold py-2 px-4 rounded-lg opacity-50 cursor-not-allowed transition-all duration-200 disabled:pointer-events-none">
-          Upload Files
+          class="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white font-semibold py-2 px-4 rounded-lg opacity-50 cursor-not-allowed transition-all duration-200 disabled:pointer-events-none">
+          <svg id="uploadSpinner" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+          <span>Upload Files</span>
         </button>
       </form>
     </div>
@@ -76,74 +83,107 @@
         🔍 Scrub and Prepare Output
       </button>
       <div id="scrubStatus" class="mt-4 hidden text-center text-slate-600">
-  <div class="flex items-center justify-center gap-2">
-    <svg class="animate-spin h-5 w-5 text-sky-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-      <path class="opacity-75" fill="currentColor"
-        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
-      </path>
-    </svg>
-    <span>Scrubbing files... please wait</span>
-  </div>
-</div>
-
+        <div class="flex items-center justify-center gap-2">
+          <svg class="animate-spin h-5 w-5 text-sky-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor"
+              d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
+            </path>
+          </svg>
+          <span>Scrubbing files... please wait</span>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- JavaScript for File Input Previews & Button Activation -->
+  <!-- JavaScript for Interaction -->
   <script>
-    const removeInput = document.getElementById('removeFile');
-    const removeBtn = document.getElementById('removeBtn');
-    const removeList = document.getElementById('removeFileList');
+    document.addEventListener('DOMContentLoaded', function () {
+      const allowedExtension = '.xlsx';
 
-    const uploadInput = document.getElementById('uploadFiles');
-    const uploadBtn = document.getElementById('uploadBtn');
-    const uploadList = document.getElementById('uploadFileList');
+      const removeInput = document.getElementById('removeFile');
+      const removeBtn = document.getElementById('removeBtn');
+      const removeList = document.getElementById('removeFileList');
+      const removeSpinner = document.getElementById('removeSpinner');
 
-    function updateFileList(input, listContainer, btn) {
-      listContainer.innerHTML = "";
-      const files = input.files;
-      btn.disabled = !files.length;
-      toggleBtnState(btn);
+      const uploadInput = document.getElementById('uploadFiles');
+      const uploadBtn = document.getElementById('uploadBtn');
+      const uploadList = document.getElementById('uploadFileList');
+      const uploadSpinner = document.getElementById('uploadSpinner');
 
-      if (files.length) {
+      function isValidExcelFile(fileName) {
+        return fileName.toLowerCase().endsWith(allowedExtension);
+      }
+
+      function updateFileList(input, listContainer, btn) {
+        listContainer.innerHTML = "";
+        const files = input.files;
+        if (!files.length) {
+          btn.disabled = true;
+          toggleBtnState(btn);
+          return;
+        }
+
+        const validFiles = [];
         for (let i = 0; i < files.length; i++) {
+          if (!isValidExcelFile(files[i].name)) {
+            alert(`❌ Invalid file type: "${files[i].name}". Only .xlsx files are allowed.`);
+            input.value = "";
+            btn.disabled = true;
+            toggleBtnState(btn);
+            return;
+          }
+          validFiles.push(files[i]);
+        }
+
+        btn.disabled = validFiles.length === 0;
+        toggleBtnState(btn);
+
+        for (let file of validFiles) {
           const li = document.createElement("li");
           li.className = "flex items-center gap-2 truncate";
-          li.innerHTML = `<span class="text-slate-400">📄</span> <span class="truncate">${files[i].name}</span>`;
+          li.innerHTML = `<span class="text-slate-400">📄</span> <span class="truncate">${file.name}</span>`;
           listContainer.appendChild(li);
         }
       }
-    }
 
-    function toggleBtnState(btn) {
-      if (btn.disabled) {
-        btn.classList.add('opacity-50', 'cursor-not-allowed');
-      } else {
-        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+      function toggleBtnState(btn) {
+        if (btn.disabled) {
+          btn.classList.add('opacity-50', 'cursor-not-allowed');
+        } else {
+          btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
       }
-    }
 
-    removeInput.addEventListener('change', () => updateFileList(removeInput, removeList, removeBtn));
-    uploadInput.addEventListener('change', () => updateFileList(uploadInput, uploadList, uploadBtn));
+      // Show spinner on form submit
+      document.getElementById('removeForm').addEventListener('submit', function () {
+        removeBtn.disabled = true;
+        removeSpinner.classList.remove('hidden');
+      });
 
-    document.getElementById('scrubBtn').addEventListener('click', async function () {
-  const statusDiv = document.getElementById('scrubStatus');
-  statusDiv.classList.remove('hidden');
+      document.getElementById('uploadForm').addEventListener('submit', function () {
+        uploadBtn.disabled = true;
+        uploadSpinner.classList.remove('hidden');
+      });
 
-  try {
-    const response = await fetch('/scrub');
-    const html = await response.text();
+      removeInput.addEventListener('change', () => updateFileList(removeInput, removeList, removeBtn));
+      uploadInput.addEventListener('change', () => updateFileList(uploadInput, uploadList, uploadBtn));
 
-    // Replace entire page content with updated HTML
-    document.open();
-    document.write(html);
-    document.close();
-  } catch (err) {
-    statusDiv.innerHTML = "<p class='text-red-500'>❌ Failed to scrub files. Please try again.</p>";
-  }
-});
+      document.getElementById('scrubBtn').addEventListener('click', async function () {
+        const statusDiv = document.getElementById('scrubStatus');
+        statusDiv.classList.remove('hidden');
 
+        try {
+          const response = await fetch('/scrub');
+          const html = await response.text();
+          document.open();
+          document.write(html);
+          document.close();
+        } catch (err) {
+          statusDiv.innerHTML = "<p class='text-red-500'>❌ Failed to scrub files. Please try again.</p>";
+        }
+      });
+    });
   </script>
 
 </body>
